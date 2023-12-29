@@ -1,5 +1,3 @@
-# (c) @AbirHasan2005
-
 from .normal_rename import NormalRename
 from .custom_uploader import CustomUploader
 from .upload_video import UploadVideo
@@ -15,3 +13,5 @@ class New(
     UploadDocument
 ):
     """ New Methods for Pyrogram """
+
+# No Change These Code From AbirHasan Renamer Bot
