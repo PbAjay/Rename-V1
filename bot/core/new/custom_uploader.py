@@ -1,45 +1,15 @@
-# (c) @AbirHasan2005 & @subinps
-# Bruh!
-# Took a huge time to make this script.
-# So Plis,
-# !! Don't Copy without credits !!
-
-# Some Parts Copied from:
-# https://github.com/pyrogram/pyrogram/blob/master/pyrogram/methods/advanced/save_file.py
-# https://github.com/pyrogram/pyrogram/blob/master/pyrogram/methods/messages/send_video.py
-# https://github.com/pyrogram/pyrogram/blob/master/pyrogram/methods/messages/send_audio.py
-# https://github.com/pyrogram/pyrogram/blob/master/pyrogram/methods/messages/send_document.py
-
 import os
 import io
 import math
-import inspect
 import asyncio
 import functools
-from configs import Config
 from hashlib import sha256, md5
 from pyrogram.crypto import aes
-from pyrogram import raw
-from pyrogram import utils
-from pyrogram import StopTransmission
-from pyrogram.errors import (
-    AuthBytesInvalid,
-    VolumeLocNotFound
-)
-from pyrogram.file_id import (
-    FileId,
-    FileType,
-    ThumbnailSource
-)
-from pyrogram.session import (
-    Auth,
-    Session
-)
+from pyrogram import raw, utils, StopTransmission
+from pyrogram.errors import AuthBytesInvalid, VolumeLocNotFound
+from pyrogram.file_id import FileId, FileType, ThumbnailSource
+from pyrogram.session import Auth, Session
 from pyrogram.scaffold import Scaffold
-
-LOGGER = Config.LOGGER
-log = LOGGER.getLogger(__name__)
-
 
 class CustomUploader(Scaffold):
     async def custom_upload(
@@ -101,28 +71,28 @@ class CustomUploader(Scaffold):
                     return
 
                 try:
-                    await self.loop.create_task(session.send(data))
+                    await asyncio.create_task(session.send(data))
                 except Exception as e:
                     log.error(e)
 
         file_type = file_id.file_type
 
         if file_type == FileType.CHAT_PHOTO:
-            if file_id.chat_id > 0:
-                peer = raw.types.InputPeerUser(
+            peer = (
+                raw.types.InputPeerUser(
                     user_id=file_id.chat_id,
                     access_hash=file_id.chat_access_hash
                 )
-            else:
-                if file_id.chat_access_hash == 0:
-                    peer = raw.types.InputPeerChat(
-                        chat_id=-file_id.chat_id
-                    )
-                else:
-                    peer = raw.types.InputPeerChannel(
+                if file_id.chat_id > 0
+                else (
+                    raw.types.InputPeerChat(chat_id=-file_id.chat_id)
+                    if file_id.chat_access_hash == 0
+                    else raw.types.InputPeerChannel(
                         channel_id=utils.get_channel_id(file_id.chat_id),
                         access_hash=file_id.chat_access_hash
                     )
+                )
+            )
 
             location = raw.types.InputPeerPhotoFileLocation(
                 peer=peer,
@@ -144,14 +114,14 @@ class CustomUploader(Scaffold):
                 file_reference=file_id.file_reference,
                 thumb_size=file_id.thumbnail_size
             )
-        part_size = 512 * 1024
 
+        part_size = 512 * 1024
         limit = 1024 * 1024
         _n_file_id = None
         file_id_ = None
         file_part = 0
         offset = 0
-        file_total_parts = int(math.ceil(file_size / part_size))
+        file_total_parts = math.ceil(file_size / part_size)
         is_big = file_size > 10 * 1024 * 1024
         pool_size = 3 if is_big else 1
         workers_count = 4 if is_big else 1
@@ -162,7 +132,7 @@ class CustomUploader(Scaffold):
                 await self.storage.test_mode(), is_media=True
             ) for _ in range(pool_size)
         ]
-        workers = [self.loop.create_task(worker(session_)) for session_ in pool for _ in range(workers_count)]
+        workers = [asyncio.create_task(worker(session_)) for session_ in pool for _ in range(workers_count)]
         queue = asyncio.Queue(16)
 
         try:
@@ -254,7 +224,7 @@ class CustomUploader(Scaffold):
                             if inspect.iscoroutinefunction(progress):
                                 await func()
                             else:
-                                await self.loop.run_in_executor(self.executor, func)
+                                await asyncio.to_thread(func)
                         r = await session.send(
                             raw.functions.upload.GetFile(
                                 location=location,
@@ -382,8 +352,6 @@ class CustomUploader(Scaffold):
                                     file_part_ += 1
                                     file_part += 1
 
-                            # f.write(decrypted_chunk)
-
                             offset += limit
 
                             if progress:
@@ -399,7 +367,7 @@ class CustomUploader(Scaffold):
                                 if inspect.iscoroutinefunction(progress):
                                     await func()
                                 else:
-                                    await self.loop.run_in_executor(self.executor, func)
+                                    await asyncio.to_thread(func)
 
                             if len(chunk) < limit:
                                 break
@@ -442,3 +410,4 @@ class CustomUploader(Scaffold):
 
             for session_ in pool:
                 await session_.stop()
+                                              
